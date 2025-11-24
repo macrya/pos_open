@@ -12,7 +12,7 @@ services:
       - key: PORT
         value: 10000
       - key: DATABASE_PATH
-        value: /opt/render/project/src/pos_database.sqlite
+        value: /data/pos_database.sqlite
       - key: BUSINESS_NAME
         value: My Business
       - key: BUSINESS_TYPE
@@ -25,5 +25,5 @@ services:
         value: Thank you for your business!
     disk:
       name: pos-database
-      mountPath: /opt/render/project/src
+      mountPath: /data
       sizeGB: 1

@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: pos-system
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: chmod +x ./build.sh && ./build.sh
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_PATH
+        value: /opt/render/project/src/pos_database.sqlite
+      - key: BUSINESS_NAME
+        value: My Business
+      - key: BUSINESS_TYPE
+        value: retail
+      - key: CURRENCY
+        value: USD
+      - key: TAX_RATE
+        value: "0.08"
+      - key: RECEIPT_FOOTER
+        value: Thank you for your business!
+    disk:
+      name: pos-database
+      mountPath: /opt/render/project/src
+      sizeGB: 1

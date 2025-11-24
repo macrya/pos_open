@@ -1,6 +1,7 @@
 import express, { Express, Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
 import { initializeDatabase } from './database/schema';
 
 // Import routes
@@ -23,7 +24,14 @@ app.use(express.urlencoded({ extended: true }));
 // Initialize database
 initializeDatabase();
 
-// Routes
+// Serve static files in production
+if (process.env.NODE_ENV === 'production') {
+  const publicPath = path.join(__dirname, 'public');
+  app.use(express.static(publicPath));
+  console.log(`✓ Serving static files from ${publicPath}`);
+}
+
+// API Routes
 app.use('/api/products', productsRouter);
 app.use('/api/sales', salesRouter);
 app.use('/api/customers', customersRouter);
@@ -34,8 +42,8 @@ app.get('/api/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Root endpoint
-app.get('/', (req: Request, res: Response) => {
+// API info endpoint
+app.get('/api', (req: Request, res: Response) => {
   res.json({
     name: 'POS System API',
     version: '1.0.0',
@@ -48,6 +56,13 @@ app.get('/', (req: Request, res: Response) => {
     }
   });
 });
+
+// Serve React app for all other routes in production
+if (process.env.NODE_ENV === 'production') {
+  app.get('*', (req: Request, res: Response) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  });
+}
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: any) => {

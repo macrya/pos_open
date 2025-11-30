@@ -78,19 +78,24 @@ export interface Settings {
   [key: string]: string;
 }
 
-// Products API
+// Products API - Routes through API Gateway to Inventory Service
 export const productsAPI = {
   getAll: (includeInactive = false) =>
-    api.get<Product[]>(`/products?include_inactive=${includeInactive}`),
-  getById: (id: string) => api.get<Product>(`/products/${id}`),
-  search: (query: string) => api.get<Product[]>(`/products/search/${query}`),
-  getByCategory: (category: string) => api.get<Product[]>(`/products/category/${category}`),
-  getLowStock: () => api.get<Product[]>(`/products/alerts/low-stock`),
-  create: (product: Partial<Product>) => api.post<Product>('/products', product),
-  update: (id: string, updates: Partial<Product>) => api.put<Product>(`/products/${id}`, updates),
+    api.get<Product[]>(`/inventory/products?include_inactive=${includeInactive}`),
+  getById: (id: string) => api.get<Product>(`/inventory/products/${id}`),
+  search: (query: string) => api.get<Product[]>(`/inventory/products/search/${query}`),
+  getByCategory: (category: string) => api.get<Product[]>(`/inventory/products/category/${category}`),
+  getLowStock: () => api.get<Product[]>(`/inventory/alerts/low-stock`),
+  create: (product: Partial<Product>) => api.post<Product>('/inventory/products', product),
+  update: (id: string, updates: Partial<Product>) => api.put<Product>(`/inventory/products/${id}`, updates),
   updateStock: (id: string, quantity: number) =>
-    api.patch<Product>(`/products/${id}/stock`, { quantity }),
-  delete: (id: string) => api.delete(`/products/${id}`),
+    api.post<Product>(`/inventory/stock/adjust`, {
+      productId: id,
+      quantity,
+      type: 'set',
+      reason: 'Manual adjustment',
+    }),
+  delete: (id: string) => api.delete(`/inventory/products/${id}`),
 };
 
 // Sales API

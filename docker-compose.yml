@@ -1,0 +1,234 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: pos_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
+    networks:
+      - pos_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: pos_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - pos_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # RabbitMQ Event Bus
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: pos_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: pos_user
+      RABBITMQ_DEFAULT_PASS: pos_password
+    ports:
+      - "5672:5672"   # AMQP port
+      - "15672:15672" # Management UI
+    networks:
+      - pos_network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # API Gateway (Port 8000)
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: ../../infrastructure/docker/Dockerfile.node
+    container_name: pos_api_gateway
+    environment:
+      PORT: 8000
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key}
+      AUTH_SERVICE_URL: http://auth-service:8001
+      INVENTORY_SERVICE_URL: http://inventory-service:8002
+      SALES_SERVICE_URL: http://sales-service:8003
+      PAYMENT_SERVICE_URL: http://payment-service:8004
+      CUSTOMER_SERVICE_URL: http://customer-service:8005
+      REPORTING_SERVICE_URL: http://reporting-service:8006
+      NOTIFICATION_SERVICE_URL: http://notification-service:8007
+      RECEIPT_SERVICE_URL: http://receipt-service:8008
+      USER_SERVICE_URL: http://user-service:8009
+    ports:
+      - "8000:8000"
+    depends_on:
+      - auth-service
+      - inventory-service
+    networks:
+      - pos_network
+    restart: unless-stopped
+
+  # Authentication Service (Port 8001)
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: ../../infrastructure/docker/Dockerfile.node
+    container_name: pos_auth_service
+    environment:
+      PORT: 8001
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: pos_auth
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - pos_network
+    restart: unless-stopped
+
+  # Inventory Service (Port 8002)
+  inventory-service:
+    build:
+      context: ./services/inventory-service
+      dockerfile: ../../infrastructure/docker/Dockerfile.node
+    container_name: pos_inventory_service
+    environment:
+      PORT: 8002
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: pos_inventory
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_URL: amqp://pos_user:pos_password@rabbitmq:5672
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - pos_network
+    restart: unless-stopped
+
+  # Sales Service (Port 8003)
+  sales-service:
+    build:
+      context: ./services/sales-service
+      dockerfile: ../../infrastructure/docker/Dockerfile.node
+    container_name: pos_sales_service
+    environment:
+      PORT: 8003
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: pos_sales
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_URL: amqp://pos_user:pos_password@rabbitmq:5672
+      INVENTORY_SERVICE_URL: http://inventory-service:8002
+      PAYMENT_SERVICE_URL: http://payment-service:8004
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - pos_network
+    restart: unless-stopped
+
+  # Payment Service (Port 8004)
+  payment-service:
+    build:
+      context: ./services/payment-service
+      dockerfile: ../../infrastructure/docker/Dockerfile.node
+    container_name: pos_payment_service
+    environment:
+      PORT: 8004
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: pos_payments
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_URL: amqp://pos_user:pos_password@rabbitmq:5672
+      MPESA_CONSUMER_KEY: ${MPESA_CONSUMER_KEY}
+      MPESA_CONSUMER_SECRET: ${MPESA_CONSUMER_SECRET}
+      MPESA_SHORTCODE: ${MPESA_SHORTCODE}
+      MPESA_PASSKEY: ${MPESA_PASSKEY}
+      MPESA_CALLBACK_URL: ${MPESA_CALLBACK_URL}
+    ports:
+      - "8004:8004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - pos_network
+    restart: unless-stopped
+
+  # Customer Service (Port 8005)
+  customer-service:
+    build:
+      context: ./services/customer-service
+      dockerfile: ../../infrastructure/docker/Dockerfile.node
+    container_name: pos_customer_service
+    environment:
+      PORT: 8005
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: pos_customers
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_URL: amqp://pos_user:pos_password@rabbitmq:5672
+    ports:
+      - "8005:8005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - pos_network
+    restart: unless-stopped
+
+  # Frontend React App
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../infrastructure/docker/Dockerfile.frontend
+    container_name: pos_frontend
+    environment:
+      VITE_API_URL: http://localhost:8000/api
+    ports:
+      - "3000:80"
+    depends_on:
+      - api-gateway
+    networks:
+      - pos_network
+    restart: unless-stopped
+
+networks:
+  pos_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
